@@ -20,28 +20,9 @@ AGE                    （未使用，法遵禁用，無貢獻度可畫）
 不是畫成 0（避免讓人誤以為「模型看過但影響是 0」，實際上是「模型從未接收這個輸入」，兩者
 意義不同，圖上要分清楚）。
 
-### 對應的 Plotly 程式碼（可請 AI Visual 協助精修成正式儀表板版本）
-
-```python
-import plotly.graph_objects as go
-
-# 只放模型真的用到的特徵；BILL_AMT1／AGE 未使用，不進圖表，
-# 避免讓人誤以為「有畫出來＝有參與判斷」。
-features = ["PAY_0（還款狀態）", "signup_at（帳齡）"]
-shap_contribution = [0.62, 0.24]  # 相對貢獻度，僅供本個案說明使用，非全體平均
-
-fig = go.Figure(go.Bar(
-    x=shap_contribution,
-    y=features,
-    orientation="h",
-    marker_color=["#b6552e", "#a06a1e"]
-))
-fig.update_layout(
-    title="申請案 APP-20260312-0417：SHAP 貢獻度（僅列模型實際使用的特徵）",
-    xaxis_title="對違約機率的推升程度（相對值）",
-    yaxis_title=None
-)
-```
+產生這張圖的程式碼是獨立檔案 [`visualize_shap.py`](./visualize_shap.py)（跟 W11 `clean_credit_data.py`
+同一個模式：程式碼跟它的輸出分成兩個檔案，不是把程式碼寫進文件裡）。本機執行後輸出
+`shap_chart.svg`，兩個檔案一起 commit。
 
 | 要放的圖／欄位 | 給誰看（授信人員／客服／主管） | 為什麼需要這個，不是「順便放」 |
 |---|---|---|
