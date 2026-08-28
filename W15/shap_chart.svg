@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="220" viewBox="0 0 640 220" font-family="'Noto Sans TC', sans-serif">
+  <title>APP-20260312-0417 SHAP 貢獻度（僅列模型實際使用的特徵）</title>
+  <rect width="640" height="220" fill="#fffdf8"/>
+  <text x="20" y="28" font-size="15" font-weight="700" fill="#3a2f28">申請案 APP-20260312-0417：SHAP 貢獻度（僅列模型實際使用的特徵）</text>
+
+  <!-- PAY_0 bar -->
+  <text x="20" y="70" font-size="13" fill="#3a2f28">PAY_0（還款狀態）</text>
+  <rect x="180" y="55" width="360" height="24" fill="#f6ddc4"/>
+  <rect x="180" y="55" width="310" height="24" fill="#b6552e"/>
+  <text x="500" y="72" font-size="12" fill="#3a2f28">0.62（主要因子）</text>
+
+  <!-- signup_at bar -->
+  <text x="20" y="115" font-size="13" fill="#3a2f28">signup_at（帳齡）</text>
+  <rect x="180" y="100" width="360" height="24" fill="#f6ddc4"/>
+  <rect x="180" y="100" width="120" height="24" fill="#a06a1e"/>
+  <text x="310" y="117" font-size="12" fill="#3a2f28">0.24（次要因子）</text>
+
+  <!-- BILL_AMT1 -->
+  <text x="20" y="160" font-size="13" fill="#9c8c78">BILL_AMT1</text>
+  <text x="180" y="160" font-size="12" fill="#9c8c78">未使用（W11 缺漏率 66.8%，已剔除）</text>
+
+  <!-- AGE -->
+  <text x="20" y="195" font-size="13" fill="#9c8c78">AGE</text>
+  <text x="180" y="195" font-size="12" fill="#9c8c78">未使用（W13 法遵禁用，模型未接收此輸入）</text>
+</svg>
