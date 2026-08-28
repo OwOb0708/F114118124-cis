@@ -13,7 +13,11 @@ domains/ 目錄裡也搜不到這個案號對應的任何一筆真實資料列�
 後停在「這筆申請案的預測機率」，一眼就看得出來龍去脈——這也是視覺化助理在對話裡本來就
 建議的畫法（"透過 Waterfall Plot 視覺化該申請人的特徵貢獻度"）。
 
-執行方式：pip install plotly kaleido && python visualize_shap.py
+執行方式：pip install "plotly>=6.1.1" "kaleido>=0.4" && python visualize_shap.py
+
+（版本要對齊：plotly<6.1 配 kaleido>=1 匯出圖片會直接拋錯；kaleido 0.2.x 在部分 Windows
+環境下會因為缺少內建的 Chromium 執行檔而整個掛住、沒有任何錯誤訊息，是已知問題，不是
+程式碼寫錯——這份腳本已用 plotly 7.0.0 + kaleido 1.3.0 實際執行成功過。）
 """
 
 import plotly.graph_objects as go
