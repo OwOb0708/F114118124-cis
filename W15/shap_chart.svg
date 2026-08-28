@@ -1,25 +1,44 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="220" viewBox="0 0 640 220" font-family="'Noto Sans TC', sans-serif">
-  <title>APP-20260312-0417 SHAP 貢獻度（僅列模型實際使用的特徵）</title>
-  <rect width="640" height="220" fill="#fffdf8"/>
-  <text x="20" y="28" font-size="15" font-weight="700" fill="#3a2f28">申請案 APP-20260312-0417：SHAP 貢獻度（僅列模型實際使用的特徵）</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="700" height="320" viewBox="0 0 700 320" font-family="'Noto Sans TC', sans-serif">
+  <title>申請案 APP-20260312-0417：從一般申請人到這筆案子的違約機率變化（SHAP 瀑布圖，示範用途）</title>
+  <rect width="700" height="320" fill="#fffdf8"/>
+  <text x="20" y="26" font-size="14" font-weight="700" fill="#3a2f28">申請案 APP-20260312-0417：從一般申請人到這筆案子的違約機率變化（示範用途）</text>
 
-  <!-- PAY_0 bar -->
-  <text x="20" y="70" font-size="13" fill="#3a2f28">PAY_0（還款狀態）</text>
-  <rect x="180" y="55" width="360" height="24" fill="#f6ddc4"/>
-  <rect x="180" y="55" width="310" height="24" fill="#b6552e"/>
-  <text x="500" y="72" font-size="12" fill="#3a2f28">0.62（主要因子）</text>
+  <!-- axis: 0% at y=270, 100% at y=50 -->
+  <line x1="60" y1="270" x2="670" y2="270" stroke="#ece0cb" stroke-width="1"/>
+  <line x1="60" y1="50" x2="60" y2="270" stroke="#ece0cb" stroke-width="1"/>
+  <text x="15" y="274" font-size="10" fill="#9c8c78">0%</text>
+  <text x="15" y="54" font-size="10" fill="#9c8c78">100%</text>
 
-  <!-- signup_at bar -->
-  <text x="20" y="115" font-size="13" fill="#3a2f28">signup_at（帳齡）</text>
-  <rect x="180" y="100" width="360" height="24" fill="#f6ddc4"/>
-  <rect x="180" y="100" width="120" height="24" fill="#a06a1e"/>
-  <text x="310" y="117" font-size="12" fill="#3a2f28">0.24（次要因子）</text>
+  <!-- Bar 1: baseline 51.7% -->
+  <rect x="90" y="132" width="110" height="138" fill="#5c2e12"/>
+  <text x="145" y="122" font-size="12" fill="#3a2f28" text-anchor="middle">51.7%</text>
+  <text x="145" y="292" font-size="11" fill="#3a2f28" text-anchor="middle">一般申請人</text>
+  <text x="145" y="306" font-size="11" fill="#3a2f28" text-anchor="middle">平均違約機率</text>
 
-  <!-- BILL_AMT1 -->
-  <text x="20" y="160" font-size="13" fill="#9c8c78">BILL_AMT1</text>
-  <text x="180" y="160" font-size="12" fill="#9c8c78">未使用（W11 缺漏率 66.8%，已剔除）</text>
+  <!-- connector 1 -->
+  <line x1="200" y1="132" x2="240" y2="132" stroke="#c9b89a" stroke-width="1.5" stroke-dasharray="4,3"/>
 
-  <!-- AGE -->
-  <text x="20" y="195" font-size="13" fill="#9c8c78">AGE</text>
-  <text x="180" y="195" font-size="12" fill="#9c8c78">未使用（W13 法遵禁用，模型未接收此輸入）</text>
+  <!-- Bar 2: PAY_0 push +19% (51.7% -> 70.7%) -->
+  <rect x="240" y="82" width="110" height="50" fill="#b6552e"/>
+  <text x="295" y="72" font-size="12" fill="#3a2f28" text-anchor="middle">+19%</text>
+  <text x="295" y="292" font-size="11" fill="#3a2f28" text-anchor="middle">PAY_0</text>
+  <text x="295" y="306" font-size="11" fill="#3a2f28" text-anchor="middle">（還款狀態）</text>
+
+  <!-- connector 2 -->
+  <line x1="350" y1="82" x2="390" y2="82" stroke="#c9b89a" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+  <!-- Bar 3: signup_at push +8% (70.7% -> 78.7%) -->
+  <rect x="390" y="61" width="110" height="21" fill="#b6552e"/>
+  <text x="445" y="52" font-size="12" fill="#3a2f28" text-anchor="middle">+8%</text>
+  <text x="445" y="292" font-size="11" fill="#3a2f28" text-anchor="middle">signup_at</text>
+  <text x="445" y="306" font-size="11" fill="#3a2f28" text-anchor="middle">（帳齡）</text>
+
+  <!-- connector 3 -->
+  <line x1="500" y1="61" x2="540" y2="61" stroke="#c9b89a" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+  <!-- Bar 4: final total 78.7% -->
+  <rect x="540" y="61" width="110" height="209" fill="#5c2e12"/>
+  <text x="595" y="52" font-size="12" fill="#3a2f28" text-anchor="middle">78.7%</text>
+  <text x="595" y="292" font-size="11" fill="#3a2f28" text-anchor="middle">這筆申請案</text>
+  <text x="595" y="306" font-size="11" fill="#3a2f28" text-anchor="middle">最終預測機率</text>
 </svg>
