@@ -1,6 +1,13 @@
 ## 儀表板規格 － 對應評分：visualization
 
-### 這筆申請案的 SHAP 貢獻度圖（文字版，供本文件內直接檢視；正式儀表板會用下方 Plotly 程式碼渲染成互動長條圖）
+### 這筆申請案的 SHAP 貢獻度圖
+
+實際圖檔：[`shap_chart.svg`](./shap_chart.svg)（同資料夾）——本機產出後直接 commit，平台透過
+GitHub 讀取（不執行程式碼，只讀取檔案本身，見 `sandbox.py` 的 `CIS_ENABLE_SANDBOX` 說明）。
+
+![申請案 APP-20260312-0417 SHAP 貢獻度](./shap_chart.svg)
+
+文字版（備用，供純文字環境或 Markdown 檢視器不支援內嵌圖片時參考）：
 
 ```
 PAY_0（還款狀態）      ██████████████████  推升違約機率（高，主要因子）
