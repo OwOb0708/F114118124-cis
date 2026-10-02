@@ -12,6 +12,7 @@
 | 清洗後列數 | 190 |
 | missing_rate 計算方式 | `ID、PAY_0、default 三欄任一缺值列數 / 總列數`（依 QA 驗收公式） |
 | missing_rate | 31 / 190 = **0.1632**（< 0.20，通過門檻） |
+| **qa_gate_passed** | **True**（missing_rate 0.1632 < 0.20 門檻，31/190 這組數字由 `clean_credit_data.py` 實際執行 `credit-dirty.csv` 得出，可重現） |
 | random seed | 42 |
 
 ## 排除／隔離列數與原因
@@ -47,5 +48,6 @@ rows_after: 190
 excluded [ID 空白]: 12
 excluded [ID 重複（保留首筆，其餘排除）]: 17
 missing_rate (ID+PAY_0_clean+default): 31/190 = 0.1632
+qa_gate_passed: True (threshold: missing_rate < 0.20)
 random_seed: 42
 ```
