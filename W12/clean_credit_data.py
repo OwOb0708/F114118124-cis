@@ -1,134 +1,124 @@
-"""
-W12 ETL - credit-dirty.csv 清洗腳本
-作者：劉宇軒 (f114118124)
-依據 decision_log.md 中記錄的規則，對 credit-dirty.csv 進行清洗，
-產出 credit-clean.csv，並計算可重現性所需的統計量。
-"""
+"""W12 信用卡申請資料清洗（F114118124）。
 
-import re
-from datetime import datetime, timezone, timedelta
+讀 credit-dirty.csv，依 decision_log.md 的規則清洗，輸出 credit-clean.csv。
+排除與隔離的列另存 excluded_rows.csv（不交、不進模型），每一步都印出筆數，
+最後跑 validate() 自我檢查輸出是否符合欄位規格；任何一項不符就丟出例外。
 
-import pandas as pd
+用法：python clean_credit_data.py [輸入檔] [輸出檔]
+"""
+import sys
+
 import numpy as np
+import pandas as pd
 
-RANDOM_SEED = 42
+RANDOM_SEED = 42  # 本腳本沒有隨機步驟；保留固定 seed，日後加入抽樣時沿用
 np.random.seed(RANDOM_SEED)
 
-INPUT_PATH = "credit-dirty.csv"
-OUTPUT_PATH = "credit-clean.csv"
+SRC = sys.argv[1] if len(sys.argv) > 1 else "credit-dirty.csv"
+DST = sys.argv[2] if len(sys.argv) > 2 else "credit-clean.csv"
+REQUIRED = ["ID", "PAY_0", "default"]
 
-def main():
-    df = pd.read_csv(INPUT_PATH, dtype=str)
-    rows_before = len(df)
 
-    excluded_log = []
+def log(step, n, note=""):
+    print(f"[{step}] {n} 列 {note}".rstrip())
 
-    # 規則 1：ID 是申請案編號，之後要用來跟還款紀錄依 ID 對帳，
-    # 不能自行補值或產生假編號 —— ID 空白的列直接排除（隔離），不清洗。
-    blank_id_mask = df["ID"].isna()
-    excluded_log.append(("ID 空白", int(blank_id_mask.sum())))
-    df = df[~blank_id_mask].copy()
 
-    # 規則 2：ID 理論上應唯一（申請案編號），重複 ID 視為同一申請案的
-    # 重複上傳，保留第一筆、其餘隔離排除，避免同一筆申請案被重複計入
-    # missing_rate 與後續 W13/W14 的分析。
-    dup_mask = df.duplicated(subset="ID", keep="first")
-    excluded_log.append(("ID 重複（保留首筆，其餘排除）", int(dup_mask.sum())))
-    df = df[~dup_mask].copy()
+def to_utc_iso(raw):
+    """signup_at 三種格式統一成 ISO-8601 UTC；無法解析回傳 None。
 
-    rows_after_exclusion = len(df)
+    - 2024-01-02T10:00:00Z：已是 UTC。
+    - 2024/01/02 18:00+08:00：帶時區，換算成 UTC。
+    - 01/02/2024：舊系統 MM/DD/YYYY、台北時間、只有日期（Client 確認），以當日 00:00 台北時間換算。
+    """
+    s = (raw or "").strip()
+    for fmt in ("%Y-%m-%dT%H:%M:%SZ", "%Y/%m/%d %H:%M%z"):
+        t = pd.to_datetime(s, format=fmt, errors="coerce", utc=True)
+        if not pd.isna(t):
+            return t.strftime("%Y-%m-%dT%H:%M:%SZ")
+    t = pd.to_datetime(s, format="%m/%d/%Y", errors="coerce")
+    if not pd.isna(t):
+        return t.tz_localize("Asia/Taipei").tz_convert("UTC").strftime("%Y-%m-%dT%H:%M:%SZ")
+    return None
 
-    # 規則 3：AGE 的 -1 是舊系統「未填」的預設值、unknown 是同義的缺值標記。
-    # 業務上只核卡給 18 歲以上，但年齡本身不是 missing_rate 檢查欄位，
-    # 這裡只做標準化，不做數值填補（避免誤導 W14 建模）。
-    df["AGE_clean"] = df["AGE"].replace({"unknown": pd.NA, "-1": pd.NA})
 
-    # 規則 4：PAY_0 的 "late" 是舊系統人工標記的「有逾期，但不知道逾期
-    # 幾個月（至少 1 個月）」。這跟欄位規格定義的數值代碼（-2~9）語意不同、
-    # 無法轉成具體代碼，Client 也只能說「僅知有逾期未知月數」，所以在
-    # missing_rate 的檢查欄位中，把 late 視為「有資料但資訊不足以使用」，
-    # 標記為缺值（NULL），而不是自行猜一個代碼（例如猜成 1）。
-    df["PAY_0_clean"] = df["PAY_0"].replace({"late": pd.NA})
+def clean(df):
+    excluded = []
+    log("讀入", len(df))
 
-    # 規則 5：BILL_AMT1 空白＝該期還沒出帳，n/a＝帳務同步失敗。兩者語意
-    # 不同，但都不是「使用者可清洗出正確數字」的情況，保留原樣（不猜測
-    # 金額），交由後續分析自行決定是否排除含空值的列。
-    df["BILL_AMT1_clean"] = df["BILL_AMT1"].replace({"n/a": pd.NA})
+    # 1. ID 空白：申請編號是之後與還款紀錄對帳的鍵，不能補號（Client、PM 確認）→ 排除
+    blank = df["ID"].str.strip() == ""
+    excluded.append(df[blank].assign(reason="ID 空白，無法與還款紀錄對帳"))
+    df = df[~blank].copy()
+    log("排除空白 ID", int(blank.sum()), f"→ 剩 {len(df)}")
 
-    # 規則 6：signup_at 有三種合法格式（台北時間+08:00／ISO UTC／
-    # MM/DD/YYYY）混用加上 "not-a-date" 的壞值。QA 驗收規則要求輸出
-    # 統一為 ISO-8601 UTC 格式（YYYY-MM-DDTHH:MM:SSZ），因此這裡將三種
-    # 合法格式全部正規化為 ISO-8601 UTC：
-    #   - ISO UTC（YYYY-MM-DDTHH:MM:SSZ）：已符合，原樣保留。
-    #   - 台北時間 +08:00（YYYY/MM/DD HH:MM+08:00）：換算為 UTC（減 8
-    #     小時），輸出 YYYY-MM-DDTHH:MM:SSZ。
-    #   - MM/DD/YYYY（僅日期、無時區資訊）：視為當日 UTC 00:00:00。
-    #   - "not-a-date"：標準化為缺值（NULL），不猜測。
-    def _normalize_signup_at(v):
-        if pd.isna(v) or v == "not-a-date":
-            return pd.NA
-        v = v.strip()
-        # ISO UTC: 2024-01-02T10:00:00Z
-        m = re.match(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$", v)
-        if m:
-            return v
-        # 台北時間 +08:00: 2024/01/02 18:00+08:00
-        m = re.match(r"^(\d{4})/(\d{2})/(\d{2}) (\d{2}):(\d{2})\+08:00$", v)
-        if m:
-            local_dt = datetime(
-                int(m.group(1)), int(m.group(2)), int(m.group(3)),
-                int(m.group(4)), int(m.group(5)), 0,
-                tzinfo=timezone(timedelta(hours=8)),
-            )
-            utc_dt = local_dt.astimezone(timezone.utc)
-            return utc_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-        # MM/DD/YYYY: 01/02/2024（無時間資訊，視為當日 UTC 00:00:00）
-        m = re.match(r"^(\d{2})/(\d{2})/(\d{4})$", v)
-        if m:
-            mm, dd, yyyy = m.group(1), m.group(2), m.group(3)
-            return f"{yyyy}-{mm}-{dd}T00:00:00Z"
-        # 無法辨識的格式，視為壞值
-        return pd.NA
+    # 2. 重複 ID：17 組全是整列完全相同的重複，保留第一筆，其餘隔離
+    dup = df.duplicated(keep="first")
+    conflict = df[~dup]["ID"].duplicated(keep=False)
+    if conflict.any():  # 同 ID 但內容不同：無法判斷哪筆正確，全部隔離
+        bad_ids = set(df[~dup][conflict]["ID"])
+        excluded.append(df[df["ID"].isin(bad_ids)].assign(reason="同 ID 內容衝突"))
+        df = df[~df["ID"].isin(bad_ids)].copy()
+    excluded.append(df[dup].assign(reason="與同 ID 列完全相同的重複"))
+    df = df[~dup].copy()
+    log("隔離完全重複列", int(dup.sum()), f"→ 剩 {len(df)}")
 
-    df["signup_at_clean"] = df["signup_at"].apply(_normalize_signup_at)
+    # 3. AGE：-1（舊系統預設）、unknown（紙本無法辨識）、空白（漏填）都是「不知道」→ NULL；超出 18–100 也設 NULL
+    age = pd.to_numeric(df["AGE"], errors="coerce")
+    age = age.where(age.between(18, 100))
+    log("AGE 設為 NULL", int(age.isna().sum()))
+    df["AGE"] = age.astype("Int64")
 
-    # 規則 7：MARITAL_STATUS 的 ?? 或 NULL 是申請人拒答，且依法遵規定
-    # 不得用於授信模型 —— 統一標準化成缺值記號，但「不花力氣」去填補，
-    # 因為這欄本來就不該進模型。
-    df["MARITAL_STATUS_clean"] = df["MARITAL_STATUS"].replace({"??": pd.NA})
+    # 4. PAY_0：late 表示已逾期但沒記錄月數（Client），硬補成 1 會低估嚴重程度 → NULL
+    pay = pd.to_numeric(df["PAY_0"], errors="coerce")
+    pay = pay.where(pay.between(-2, 9))
+    log("PAY_0 設為 NULL", int(pay.isna().sum()), "（late）")
+    df["PAY_0"] = pay.astype("Int64")
 
-    # ---- missing_rate 計算（依 QA 規則：ID、PAY_0、default 三欄
-    #      任一缺值列數 / 總列數，須 < 0.20）----
-    check_cols = ["ID", "PAY_0_clean", "default"]
-    missing_mask = df[check_cols].isna().any(axis=1)
-    missing_rows = int(missing_mask.sum())
-    rows_final = len(df)
-    missing_rate = missing_rows / rows_final if rows_final else 0.0
+    # 5. BILL_AMT1：空白＝新戶尚未出帳，金額真的是 0；n/a＝帳務同步失敗，金額存在但未知 → NULL
+    bill_raw = df["BILL_AMT1"].str.strip()
+    bill = pd.to_numeric(bill_raw, errors="coerce")
+    bill[bill_raw == ""] = 0
+    log("BILL_AMT1 空白補 0", int((bill_raw == "").sum()), f"；n/a 設 NULL {int((bill_raw.str.lower() == 'n/a').sum())}")
+    df["BILL_AMT1"] = bill
 
-    # 輸出清洗後資料（維持欄位可讀性，保留 _clean 後綴供報告使用，
-    # 同時也輸出一份覆蓋原欄名的版本給下游 W13/W14 使用）
-    out = df.copy()
-    out["AGE"] = out["AGE_clean"]
-    out["PAY_0"] = out["PAY_0_clean"]
-    out["BILL_AMT1"] = out["BILL_AMT1_clean"]
-    out["signup_at"] = out["signup_at_clean"]
-    out["MARITAL_STATUS"] = out["MARITAL_STATUS_clean"]
-    out = out[["ID", "AGE", "MARITAL_STATUS", "PAY_0", "BILL_AMT1",
-               "default", "signup_at", "LEAK_FUTURE_DEFAULT"]]
-    out.to_csv(OUTPUT_PATH, index=False)
+    # 6. signup_at：統一成 ISO-8601 UTC；not-a-date 無法還原 → NULL
+    df["signup_at"] = df["signup_at"].map(to_utc_iso)
+    log("signup_at 無法解析設 NULL", int(df["signup_at"].isna().sum()))
 
-    # ---- qa_gate_passed：missing_rate < 0.20 才算通過 QA 門檻 ----
-    qa_gate_passed = missing_rate < 0.20
+    # 7. default：目標變數，檢查只有 0／1
+    df["default"] = pd.to_numeric(df["default"], errors="coerce").astype("Int64")
 
-    # ---- 列印 transformation_report.md 所需的可重現性數字 ----
-    print("=== reproducibility ===")
-    print(f"rows_before: {rows_before}")
-    print(f"rows_after: {rows_final}")
-    for reason, cnt in excluded_log:
-        print(f"excluded [{reason}]: {cnt}")
-    print(f"missing_rate ({'+'.join(check_cols)}): {missing_rows}/{rows_final} = {missing_rate:.4f}")
-    print(f"qa_gate_passed: {str(qa_gate_passed).lower()} (threshold: missing_rate < 0.20)")
-    print(f"random_seed: {RANDOM_SEED}")
+    # 8. 拿掉的欄位：MARITAL_STATUS 是受限特徵、Client 說依法不得用於授信，且 ??／NULL 是拒答；
+    #    LEAK_FUTURE_DEFAULT 與 default 100% 相同，是申請當下拿不到的未來資訊（資料洩漏）
+    df = df.drop(columns=["MARITAL_STATUS", "LEAK_FUTURE_DEFAULT"])
+    log("移除欄位", 2, "MARITAL_STATUS、LEAK_FUTURE_DEFAULT")
+
+    return df[["ID", "AGE", "PAY_0", "BILL_AMT1", "default", "signup_at"]], pd.concat(excluded, ignore_index=True)
+
+
+def missing_rate(df):
+    """與 AI QA 確認的定義：ID、PAY_0、default 任一缺值的列數 ÷ 總列數。"""
+    return float(df[REQUIRED].isna().any(axis=1).mean())
+
+
+def validate(df):
+    """輸出自我檢查：欄位、主鍵、範圍與 missing_rate。"""
+    assert all(c in df.columns for c in REQUIRED), "缺少必要欄位"
+    assert df["ID"].notna().all() and df["ID"].is_unique, "ID 必須非空且不重複"
+    assert df["AGE"].dropna().between(18, 100).all(), "AGE 超出 18–100"
+    assert df["PAY_0"].dropna().between(-2, 9).all(), "PAY_0 超出 -2–9"
+    assert set(df["default"].dropna().unique()) <= {0, 1}, "default 只能是 0／1"
+    assert df["signup_at"].dropna().str.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z").all(), "signup_at 不是 ISO-8601 UTC"
+    rate = missing_rate(df)
+    assert rate < 0.20, f"missing_rate {rate:.3f} 未低於 0.20"
+    return rate
+
 
 if __name__ == "__main__":
-    main()
+    raw = pd.read_csv(SRC, dtype=str, keep_default_na=False)
+    out, excluded = clean(raw)
+    rate = validate(out)
+    out.to_csv(DST, index=False)
+    excluded.to_csv("excluded_rows.csv", index=False)
+    print(f"[輸出] {DST}：{len(out)} 列；排除／隔離 {len(excluded)} 列；missing_rate = {rate:.4f}")
+    print("[各欄空值]", out.isna().sum().to_dict())
